@@ -1,9 +1,4 @@
 'use strict';
-/*
-Bugs encontrados:
-- Peça ultrapassa as paredes e o chão ao ser girada
-- Peça spawna mesmo quando não há espaço caso a;
-*/
 
 // Configurando as telas | Configuring the screens
 let constGameScreen = new Array(21);
@@ -18,43 +13,43 @@ for (let i = 0; i < 21; i++) {
 }
 
 // Configurando as peças | Configuring the pieces
-const tPiece = [[0, 0, 0, 0, 0],
+const T_PIECE = [[0, 0, 0, 0, 0],
 				[0, 0, 1, 0, 0],
 				[0, 1, 1, 1, 0],
 				[0, 0, 0, 0, 0],
 				[0, 0, 0, 0, 0]];
 
-const cubePiece = 	[[0, 0, 0, 0, 0],
+const CUBE_PIECE = 	[[0, 0, 0, 0, 0],
 					 [0, 0, 0, 0, 0],
 					 [0, 0, 1, 1, 0],
 					 [0, 0, 1, 1, 0],
 					 [0, 0, 0, 0, 0]];
 
-const iPiece = 	[[0, 0, 0, 0, 0],
-				 [0, 0, 0, 0, 0],
-				 [1, 1, 1, 1, 1],
-				 [0, 0, 0, 0, 0],
-				 [0, 0, 0, 0, 0]];
+const I_PIECE = 	[[0, 0, 0, 0, 0],
+					[0, 0, 0, 0, 0],
+					[1, 1, 1, 1, 1],
+					[0, 0, 0, 0, 0],
+					[0, 0, 0, 0, 0]];
 
-const zPieceLeft = 	[[0, 0, 0, 0, 0],
-					 [0, 0, 1, 1, 0],
+const LEFT_Z_PIECE =	[[0, 0, 0, 0, 0],
+						[0, 0, 1, 1, 0],
+						[0, 1, 1, 0, 0],
+						[0, 0, 0, 0, 0],
+						[0, 0, 0, 0, 0]];
+
+const RIGHT_Z_PIECE = [[0, 0, 0, 0, 0],
 					 [0, 1, 1, 0, 0],
-					 [0, 0, 0, 0, 0],
-					 [0, 0, 0, 0, 0]];
-
-const zPieceRight = [[0, 0, 0, 0, 0],
-					 [0, 1, 1, 0, 0],
 					 [0, 0, 1, 1, 0],
 					 [0, 0, 0, 0, 0],
 					 [0, 0, 0, 0, 0]];
 
-const lPieceLeft =  [[0, 0, 0, 0, 0],
+const LEFT_L_PIECE =  [[0, 0, 0, 0, 0],
 					 [0, 1, 1, 0, 0],
 					 [0, 0, 1, 0, 0],
 					 [0, 0, 1, 0, 0],
 					 [0, 0, 0, 0, 0]];
 
-const lPieceRight = [[0, 0, 0, 0, 0],
+const RIGHT_L_PIECE = [[0, 0, 0, 0, 0],
 					 [0, 0, 1, 1, 0],
 					 [0, 0, 1, 0, 0],
 					 [0, 0, 1, 0, 0],
@@ -63,10 +58,13 @@ const lPieceRight = [[0, 0, 0, 0, 0],
 let actualPiece = [];
 
 // Configurações Gerais | General Settings
-let fallFrequency = 1250;
+let fallFrequency = 1200;
+let fallFrequencyHolder = fallFrequency;
+let isFallFrequencyHolding = false;
+const FAST_FALL_VALUE = 50;
+
 let piecePositionX = 2;
 let piecePositionY = 0;
-let ReferencePointX = 0;
 let referencePointY = 0;
 let lastPiece = 0;
 let fallCount = 0;
@@ -75,11 +73,14 @@ let isZPiece = false;
 let rotateBack = false;
 let fallTime;
 
-const leftArrowValue = 37;
-const upArrowValue = 38;
-const rightArrowValue = 39;
+const LEFT_ARROW_VALUE = 37;
+const UP_ARROW_VALUE = 38;
+const RIGHT_ARROW_VALUE = 39;
+const DOWN_ARROW_VALUE = 40;
 
 document.addEventListener("keydown", doMovement);
+document.addEventListener("keyup", resetFastFall);
+
 
 // Lógica do Jogo | Game Logic
 function constructCube(y, x) {
@@ -139,11 +140,11 @@ function drawConstScreen() {
 function rotatePiece() {
 	let way;
 	
-	if (actualPiece === cubePiece) {
+	if (actualPiece === CUBE_PIECE) {
 		way = null;
 	} else  {
 		way = "clockwise";
-		if (actualPiece === zPieceLeft || actualPiece === zPieceRight) {
+		if (actualPiece === LEFT_Z_PIECE || actualPiece === RIGHT_Z_PIECE) {
 			isZPiece = true;
 		}
 	}
@@ -190,7 +191,56 @@ function rotatePiece() {
 		return reverted;
 	}
 	
+	function adjustXcoordinate() {
+		let actualX = piecePositionX;
+		let leftReference;
+		let rightReference;
+		for (let j = 0; j < 5; j++) {
+			for (let i = 0; i < 5; i++) {
+				if (actualPiece[i][j] === 1) {
+					leftReference = j;
+					j = 5;
+					i = 5;
+				}
+			}
+		}
+		
+		for (let jj = 4; jj >= 0; jj--) {
+			for (let ii = 4; ii >= 0; ii--) {
+				if (actualPiece[ii][jj] === 1) {
+					rightReference = jj;
+					jj = -1;
+					ii = -1;
+				}
+			}
+		}
+		
+		function adjustPieceOnScreen() {
+			adjustLeftSide();
+			adjustRightSide();
+			
+			function adjustLeftSide() {
+				if (piecePositionX - leftReference + (rightReference - 1) < 0) {
+					piecePositionX++;
+					adjustLeftSide();
+				}
+			}
+			
+			function adjustRightSide() {
+				if (piecePositionX + rightReference > 9) {
+					piecePositionX--;
+					adjustRightSide();
+				}
+			}
+			
+			playActualPiece();
+		}
+		
+		adjustPieceOnScreen();
+	}
+	
 	adjustReferencePoint();
+	adjustXcoordinate();
 }
 
 function renderScreen() {
@@ -212,7 +262,7 @@ function getNewPiece() {
 
 function fallLoop() {
 	if (isScreenRendering) {
-		if (new Date().getTime() >= fallTime + fallFrequency) {
+		if (new Date().getTime() >= fallTime + fallFrequencyHolder) {
 			fall();
 			fallTime = new Date().getTime();
 		}
@@ -274,11 +324,13 @@ function testEnd() {
 			endGame();
 		}
 	}
+	
+	function endGame() {
+		isScreenRendering = false;
+	}
 }
 
-function endGame() {
-	isScreenRendering = false;
-}
+
 
 function adjustReferencePoint() {
 	referencePointY = 0;
@@ -295,15 +347,6 @@ function adjustReferencePoint() {
 		}
 	}
 	testAdjustment();
-}
-
-function testScreenBorder() {
-	
-	function verifyBorder() {
-		for (let i = 0; i < 5; i++) {
-			
-		}
-	}
 }
 
 function playActualPiece() {
@@ -330,25 +373,25 @@ function drawRandomPiece() {
 function pieceChooser(piece) {
 	switch (piece) {
 		case 1:
-			actualPiece = tPiece;
+			actualPiece = T_PIECE;
 			break;
 		case 2:
-			actualPiece = cubePiece;
+			actualPiece = CUBE_PIECE;
 			break;
 		case 3:
-			actualPiece = iPiece;
+			actualPiece = I_PIECE;
 			break;
 		case 4:
-			actualPiece = zPieceLeft;
+			actualPiece = LEFT_Z_PIECE;
 			break;
 		case 5:
-			actualPiece = zPieceRight;
+			actualPiece = RIGHT_Z_PIECE;
 			break;
 		case 6:
-			actualPiece = lPieceLeft;
+			actualPiece = LEFT_L_PIECE;
 			break;
 		case 7:
-			actualPiece = lPieceRight;
+			actualPiece = RIGHT_L_PIECE;
 			break;
 		default:
 			throw new Error("Unexpected piece ID.");
@@ -357,20 +400,25 @@ function pieceChooser(piece) {
 	rotateBack = false;
 }
 
-function doMovement() {
+function doMovement() { // object literals
 	if (validateKey() && isScreenRendering) {
 		switch (event.keyCode) {
-			case leftArrowValue:
+			case LEFT_ARROW_VALUE:
 				movePieceLeft();
 				break;
 				
-			case upArrowValue:
+			case UP_ARROW_VALUE:
 				rotatePiece();
 				break;
 				
-			case rightArrowValue:
+			case RIGHT_ARROW_VALUE:
 				movePieceRight();
 				break;
+				
+			case DOWN_ARROW_VALUE:
+				fastFall();
+				break;
+				
 			default:
 				throw new Error("Unexpected movement.");
 		}
@@ -378,8 +426,22 @@ function doMovement() {
 	}
 }
 
+function fastFall() {
+	if (!isFallFrequencyHolding) {
+		isFallFrequencyHolding = true;
+		fallFrequencyHolder = FAST_FALL_VALUE;
+	}
+}
+
+function resetFastFall() {
+	if (event.keyCode === DOWN_ARROW_VALUE) {
+		fallFrequencyHolder = fallFrequency;
+		isFallFrequencyHolding = false;
+	}
+}
+
 function validateKey() {
-	const validKeys = [leftArrowValue, upArrowValue, rightArrowValue];
+	const validKeys = [LEFT_ARROW_VALUE, UP_ARROW_VALUE, RIGHT_ARROW_VALUE, DOWN_ARROW_VALUE];
 	let returnValue = false;
 	for (let i = 0; i < validKeys.length; i++) {
 		if (event.keyCode === validKeys[i]) {
@@ -448,7 +510,7 @@ function fall() {
 		piecePositionY = 0;
 		piecePositionX = 2;
 		getScore();
-		if (actualPiece === iPiece) {
+		if (actualPiece === I_PIECE) {
 			scoreValue += 50;
 		} else {
 			scoreValue += 40;
@@ -474,6 +536,12 @@ function getScore() {
 			if (doConstFall) {
 				scoreLines.push(i);
 				scoreValue += 100;
+				fallCount++;
+				if (fallCount >= 5) {
+					console.log("Speeding up! Fall Frequency: " + fallFrequency);
+					fallCount -= 5;
+					accelerateFall();
+				}
 			}
 			doConstFall = true;
 		}
@@ -488,7 +556,9 @@ function getScore() {
 		}
 	}
 	function accelerateFall() {
-		
+		if (fallFrequency > 200) {
+			fallFrequency -= 100;
+		}
 	}
 	verifyScore();
 	fallConstScreen();
